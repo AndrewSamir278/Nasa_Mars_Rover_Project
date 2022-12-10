@@ -77,6 +77,13 @@ def perspect_transform(img, src, dst):
     
     return warped
 
+# a function to detect obstacles that faces the car to avoid it
+def find_obstacle(img, obs_thresh=(100, 100, 100)):
+    color_select = np.zeros_like(img[:,:,0])
+    obs = (img[:,:,0] > obs_thresh[0]) & (img[:,:,1] > obs_thresh[1]) & (img[:,:,2] < obs_thresh[2])
+    color_select[obs] = 1
+    return color_select
+
 
 # Apply the above functions in succession and update the Rover state accordingly
 def perception_step(Rover):
