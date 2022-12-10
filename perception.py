@@ -76,24 +76,6 @@ def perspect_transform(img, src, dst):
     warped = cv2.warpPerspective(img, M, (img.shape[1], img.shape[0]))# keep same size as input image
     
     return warped
-    
-def find_obstacle(img, obs_thresh=(100, 100, 100)):
-    color_select = np.zeros_like(img[:,:,0])
-    obs = (img[:,:,0] > obs_thresh[0]) & (img[:,:,1] > obs_thresh[1]) & (img[:,:,2] < obs_thresh[2])
-    color_select[obs] = 1
-    return color_select
-
-# Define a function to threshold rock calibration image and isolate the rock.
-def rock_thresh(img):
-    
-    hsv_img=cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    
-    rock_lower = np.array([0,200,100])     # HSV lower limit for golden rocks
-    rock_upper = np.array([179,255,255])   # HSV upper limit for golden rocks
-    
-    rock_t = cv2.inRange(hsv_img, rock_lower, rock_upper)
-      
-    return rock_t*255
 
 
 # Apply the above functions in succession and update the Rover state accordingly
@@ -132,14 +114,12 @@ def perception_step(Rover):
        
 
     # 5) Convert map image pixel values to rover-centric coords
-    
     xpix, ypix = rover_coords(thresh)
     oxpix, oypix = rover_coords(obstacles)
     rxpix, rypix = rover_coords(rocks)
     
     # 6) Convert rover-centric pixel values to world coordinates
     # 7) Update Rover worldmap (to be displayed on right side of screen)
- 
         # Example: Rover.worldmap[obstacle_y_world, obstacle_x_world, 0] += 1
         #          Rover.worldmap[rock_y_world, rock_x_world, 1] += 1
         #          Rover.worldmap[navigable_y_world, navigable_x_world, 2] += 1
