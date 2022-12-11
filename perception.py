@@ -83,6 +83,20 @@ def find_obstacle(img, obs_thresh=(100, 100, 100)):
     return color_select
 
 
+# Define a function to threshold rock calibration image and isolate the rock.
+def rock_thresh(img):
+    
+    hsv_img=cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    
+    rock_lower = np.array([0,200,100])     # HSV lower limit for golden rocks
+    rock_upper = np.array([179,255,255])   # HSV upper limit for golden rocks
+    
+    rock_t = cv2.inRange(hsv_img, rock_lower, rock_upper)
+      
+    return rock_t*255
+
+
+
 # Apply the above functions in succession and update the Rover state accordingly
 def perception_step(Rover):
     # Perform perception steps to update Rover()
