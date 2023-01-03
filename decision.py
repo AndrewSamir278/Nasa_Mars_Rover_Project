@@ -154,6 +154,101 @@ def decision_step(Rover):
         print ("===================LEAVING PICKLE===================")
         return Rover
     
+  
+
+
+
+
+
+
+
+
+    if Rover.mode == 'sample':
+        
+        # In sample mode we try and pick up  the target rocks. Sample just 
+        # uses the pixel angle averaging technique for the gold rocks to 
+        # aim the rover. Then uses telemetry reading near_sample to trigger
+        # sending a pickup command to the rover.
+        #
+        # picked_up:         set to True after rover is finished picking up
+        # sample_detected:   set to True afet a sample has been detected
+        #
+        print ("===================ENTERING SAMPLE===================")
+        
+        # call pickle in case we get stuck for more than 5 seconds we can
+        # get ourselves unstuck. If we do trigger a pickle, return.
+        Rover = pickle(Rover, 5)
+        if Rover.mode == 'pickle': return Rover
+        
+        # The rocks are not always detectable on every scan, so make srue
+        # there is valid data in the array, tehn caluclate the steer angle
+        # to the target.
+        if Rover.tgt_angles.size:
+            Rover.steer = np.mean(Rover.tgt_angles * 180./np.pi)
+            
+        # If this is the first pass through on this mode, do some things
+        # like stopping the rover completely, and setting picked_up to false
+        if not Rover.sample_detected:
+            if abs(Rover.vel) >= .1:
+                Rover.brake_set = 10
+                Rover.brake = Rover.brake_set
+                return Rover
+        
+        # If stopped, then set sample_detected to True 
+            else:
+                Rover.sample_detected = True
+        
+        # Take off the brake and get rover up to max .5 velocity
+        Rover.brake = 0
+        if Rover.vel < .5:
+            Rover.throttle = .1
+        else:
+            Rover.thottle = 0.
+        
+        # If the rover is near a sample based on telemetry feedback:
+        # First make sure it is completely stopped before doing anything
+        # else
+        if Rover.near_sample:
+            if abs(Rover.vel) >= .1:
+                Rover.throttle = 0
+                Rover.brake = Rover.brake_set
+                print ("=1=================LEAVING SAMPLE===================")
+                return Rover
+            
+            # Now that it is stopped, send the pickup command to the rover
+            Rover.send_pickup = True
+            
+            # Spin here while the rover is picking up. Go ahead and set 
+            # sample_detected, send_picku to false to prepare for next
+            # sample detection event, and assume a successful pickup by 
+            # setting picked_up to True.
+            while Rover.picking_up:
+                print ("=2=================LEAVING SAMPLE===================")
+                Rover.sample_detected = False
+                Rover.send_pickup = False
+                Rover.picked_up = True
+                return Rover
+        
+        # If picked up is True then we must be done. Set picked up to False,
+        # and mode to pickle so that we can gracefully leave the sample location.
+        if Rover.picked_up:
+            print ("=3================LEAVING SAMPLE===================")
+            Rover.mode = 'pickle'
+            Rover.picked_up = False
+        print ("=4================LEAVING SAMPLE===================")
+        return Rover
+        
+        
+        
+        
+        
+        
+        
+        
+        
+         
+    
+    
     
     if Rover.mode == 'azimuth':
         
