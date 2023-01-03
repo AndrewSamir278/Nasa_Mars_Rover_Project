@@ -60,7 +60,18 @@ def decision_step(Rover):
 # Implement conditionals to decide what to do given perception data
     # Here you're all set up with some basic functionality but you'll need to
     # improve on this decision tree to do a good job of navigating autonomously!
-
+    
+    # returning home
+    if Rover.samples_collected == 4 or Rover.mapping_percentage > 95.0:
+        print('RETURNING HOME')
+        if abs(Rover.pos[0] - Rover.start_pos[0]) < 20 and abs(Rover.pos[1] - Rover.start_pos[1]) < 20:
+            Rover.throttle = 0
+            Rover.brake = Rover.brake_set
+            Rover.steer = 0
+            print('congratulations! rover at home')
+            return Rover
+        
+        
     if Rover.mode == 'pickle':
         
         # PICKLE: Intended to ensure that the Rover always reliably 'gets out of
