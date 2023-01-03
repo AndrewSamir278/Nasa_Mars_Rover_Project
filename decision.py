@@ -5,6 +5,33 @@ import numpy as np
 # commands based on the output of the perception_step() function
 
 
+# Collision Adjustment=====================================================
+# Attempts to over-ride wall / nav pixel navigation decisions 
+# In the event that there is un-navigable terrain in the path 
+# of the rover
+# Steer:     The steer angle detmermined by Nav/Wal pixel navigaiton
+# c_angles:  List of angles to non navigable terrain we want to avoid
+def collision_adj(steer, c_angles):
+    # Only make adjustments if there is more than 10 pixels of non
+    # navigable terrain
+    if c_angles.size > 40:
+        # Determine mean angle to the non-navigable pixels
+        col_angle_mean = np.mean(c_angles) * 180./np.pi
+        
+        # There is a chance that the non navigable pixe mean
+        # is straight ahead ( < 1 degree). If that is the case then
+        # force the terrain to appear on the left, so that some
+        # action is taken to break the decision.
+        if abs(col_angle_mean) < 1.0: col_angle_mean = 15.
+            
+        # adjust the steering anngle scaled to the number of collision pixels 
+        adj_angle = steer - col_angle_mean * c_angles.size/200 
+        adj_angle = np.clip(adj_angle, -15.,15.)
+    else:
+        adj_angle = steer
+
+    return adj_angle
+
 # Helper function called to keep track of when rover should go into 
 # pickle mode. 
 # Rover:            Rover Data Structure
@@ -117,7 +144,36 @@ def decision_step(Rover):
         return Rover
     
     
+    if Rover.mode == 'azimuth':
+        
+    # In this state, the Rover will stop and turn until it's yaw is approx = to the Rover.tgt_angle
+    # Only currently used in pickle mode to have the rover seek the tgt_angle after it is found. 
+        print("==================================AZIMUTH===========================")
     
+    # Check to make sure tgt_angle is valid before proceeding. If not, go into forward mode
+        if np.isnan(Rover.tgt_angle):
+            Rover.mode = 'forward'
+            return Rover
+
+        # first make sure that the rover is stopped
+        if abs(Rover.vel) >= .1:
+            Rover.throttle = 0
+            Rover.brake = Rover.brake_set
+            return Rover
+        
+        # rover is stopped, release the brake and turn right. Turning right
+        # makes sense since we want to turn back to the bst_angle found by 
+        # pickle 
+        else:
+            Rover.brake = 0
+            Rover.steer = -15
+        
+        # if we are within 3 degrees of teh tgt_angle, then that's good enough
+        # put the rover in forward and leave azimuth mode
+        if abs(Rover.yaw - Rover.tgt_angle) < 3:
+            Rover.mode = 'forward'
+        print("========================LEAVING AZIMUTH===========================")
+        return Rover    
     
     
     # There were no nav angles present...go straight into a pickle
