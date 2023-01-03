@@ -40,7 +40,16 @@ class RoverState():
     def __init__(self):
         self.start_time = None # To record the start time of navigation
         self.total_time = None # To record total duration of naviagation
+        self.stopped_time = None # To record the start of when we are stopped
+        self.stopped_angle = None # To record the initial angle of wehen we are stopped
+        self.start_pos = None  # Position (x, y) of the starting location
+        self.bst_nav = 0 # To record the current best # navigable pixels for the bst_angle 
+        self.bst_angle = None # place to hold the best solution angle on 180 degree sweep        
+        self.tgt_angle = None # angle we are aiming for in pickle or azimuth
+        self.stopped_time_limit = 6 # max time we will sit stopped without going into pickle mode
+        self.pickle = False # Flag for being in pickle mode
         self.img = None # Current camera image
+        self.stopped_pos = (0,0) # Position when we stopped
         self.pos = None # Current position (x, y)
         self.yaw = None # Current yaw angle
         self.pitch = None # Current pitch angle
@@ -51,17 +60,25 @@ class RoverState():
         self.brake = 0 # Current brake value
         self.nav_angles = None # Angles of navigable terrain pixels
         self.nav_dists = None # Distances of navigable terrain pixels
+        self.wal_angles = None # Angles of masked contour pixels
+        self.wal_dists = None # Distances of masked contour pixels
+        self.tgt_angles = None # Angles of gold rock targets
+        self.tgt_dists = None # Dinstances of gold rock targets
+        self.col_angles = None # Average angle of objects in front of rover
+        self.col_dists = None # Average distances of objects in front of rover
         self.ground_truth = ground_truth_3d # Ground truth worldmap
-        self.mode = 'forward' # Current mode (can be forward or stop)
+        self.mode = 'forward' # Current mode (can be forward, pickle or stop)
         self.throttle_set = 0.2 # Throttle setting when accelerating
         self.brake_set = 10 # Brake setting when braking
         # The stop_forward and go_forward fields below represent total count
         # of navigable terrain pixels.  This is a very crude form of knowing
         # when you can keep going and when you should stop.  Feel free to
         # get creative in adding new fields or modifying these!
-        self.stop_forward = 50 # Threshold to initiate stopping
-        self.go_forward = 500 # Threshold to go forward again
-        self.max_vel = 2 # Maximum velocity (meters/second)
+        self.ca_zone = 6 # Width of pixel collision bar in front of rover to trigger steering change
+        self.ca_pix = None # Current status of collision pixels
+        self.stop_forward = 50 # Threshold to initiate stopping 
+        self.go_forward = 800 # Threshold to go forward again 
+        self.max_vel = 3 # Maximum velocity (meters/second)  was 1.5
         # Image output from perception step
         # Update this image to display your intermediate analysis steps
         # on screen in autonomous mode
@@ -69,7 +86,8 @@ class RoverState():
         # Worldmap
         # Update this image with the positions of navigable terrain
         # obstacles and rock samples
-        self.worldmap = np.zeros((200, 200, 3), dtype=np.float) 
+        self.worldmap = np.zeros((200, 200, 3), dtype=np.float)
+        self.sample_detected = False
         self.samples_pos = None # To store the actual sample positions
         self.samples_to_find = 0 # To store the initial count of samples
         self.samples_located = 0 # To store number of samples located on map
@@ -77,6 +95,8 @@ class RoverState():
         self.near_sample = 0 # Will be set to telemetry value data["near_sample"]
         self.picking_up = 0 # Will be set to telemetry value data["picking_up"]
         self.send_pickup = False # Set to True to trigger rock pickup
+        self.picked_up = False
+        self.mapping_percentage = 0.0   # represent mapping percentage of world map
 # Initialize our rover 
 Rover = RoverState()
 
@@ -109,8 +129,12 @@ def telemetry(sid, data):
         if np.isfinite(Rover.vel):
 
             # Execute the perception and decision steps to update the Rover's state
+            #print("==========Enter Perception===========")
             Rover = perception_step(Rover)
+            #print("==========Leave Perception===========")
+            #print("==========Enter Decision===========")
             Rover = decision_step(Rover)
+            #print("==========Leave Decision===========")
 
             # Create output images to send to server
             out_image_string1, out_image_string2 = create_output_images(Rover)
