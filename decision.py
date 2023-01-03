@@ -186,6 +186,165 @@ def decision_step(Rover):
         print("========================LEAVING AZIMUTH===========================")
         return Rover    
     
+     # Do we have any valid Nav agles? We could just be looking at a black wall.
+    if Rover.nav_angles is not None:
+        
+        if Rover.mode == 'forward':
+            # Forward mode does several steps as follows at a high level:
+            # 
+            #   Step 1: Set max velocity, scaled off of the number of wall contour
+            #           pixels detected. More pixels = longer contour = go faster
+            #   
+            #   Step 2: Calculate the preference (afdlya) for navigation based on naviable pixels  over wall contour navigation (p_n).
+            #            
+            #
+            #            --> a: If there are any wall contour pixels available for navigation
+            #                   navigate using the wall pixel angle combined with the navigable pixel mean, weighted by the number of navigable pixels.
+            #                   Rover.steer = (Rover.steer + np.clip(nav_angle_mean * p_n  + (wal_angle_mean) * (1 - p_n),-15,15))/2
+            #                   
+            #                   More nav pixels = more bias away from the wall toward the naviable pixels. 
+            #                   
+            #            --> b: final collision adjustment done by the function
+            #                   collistion_adj, that will over-ride a and b completely
+            #                   if there appears to be enough of a collision hazard
+            #                   directly in front of the rover.
+            #            --> c: If there are any obstacles in front of the 
+            #                   rover, increase the preference for navigating towards
+            #                   navigable pixels based on how many navigable pixels 
+            #                   are detected.
+            #
+            #   Step 3: Look for samples, and go into sample mode if any are seen
+            #
+            #
+            
+            print("==================================FORWARD===========================")
+            # use pickle() to make srue we don't stay in forward, not moving forever.
+            Rover = pickle(Rover, Rover.stopped_time_limit)
+            
+            if Rover.col_angles.size  > 80:	# was 60
+            	Rover.mode = 'pickle'
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	print("////////////////////////////////////////////////////////")
+            	return Rover
+            	
+            
+            
+            # if number of pixels of area that can be naviabled is greater than 300 go forward
+            if len(Rover.nav_angles) >= Rover.stop_forward:
+                
+                # Determine mean distance of the wal contour pixels available for navigation
+                wal_length = np.mean(Rover.wal_dists)                
+                # Set the default velocity
+                Rover.max_vel = 1.0   
+                             
+                # if the mean length is longer than 20, go faster
+                # scaled by how much longer than than 20 it is.
+                if wal_length >= 20:
+                    Rover.max_vel = np.clip(wal_length/22, 0,2.0)	#wa Rover.max_vel = np.clip(wal_length/20, 0,3.0)
+                    
+                
+                
+                  
+                # if going slower than max, throttle
+                if Rover.vel < Rover.max_vel:
+                    Rover.throttle = Rover.throttle_set
+                else:
+                    Rover.throttle = 0
+                    
+                # if going faster than,  brake lightly
+                if Rover.vel > Rover.max_vel and Rover.vel > 1.0:
+                    Rover.throttle = 0
+                    Rover.brake = .03
+                else:
+                    Rover.brake = 0
+                
+                    
+                # If there are any wal contour pixels available for naviagtion, use those
+                # but weight the final result based off how much 'open' terrain there is represented by the navigable pixel count.
+                # A wide open white field of navigable pixels is ~ 15,000 (we have get this number by looping over world map and get we have 15000 white pixels)
+                if Rover.wal_angles.size: 
+                    wal_angle_mean = np.clip(np.mean(Rover.wal_angles * 180/np.pi) + 10,-15,15) # Offset to keep off of wall
+                    p_n = np.clip(Rover.nav_angles.size/12000.,.1,.9)
+                    
+                    # if the wal angle mean looks like we are actually detecting the contour of the warped
+                    # fov, then navigate off of nav pixels entirely.
+                    # if wal_angle_mean < -35.: p_n = .8
+                
+                # else there are no wal contour pixels, so navigate on navigable pixels only for now:
+                else:
+                    wal_angle_mean = 0
+                    p_n = 1.
+                print('Preference for Nav %i' % p_n)
+                
+                
+                # IF there are any pixels in front of us that look like a collision, set a preference
+                # for naviable pixel based navigation relative to the number of collidable pixels seen.
+                # else preference for nav pixel navigation to zero.
+                if Rover.col_angles.size: 
+                    p_n = np.clip(Rover.nav_dists.size/40.,0.1,.9) 
+                    
+                    
+                # Determine the mean angle of the navigable pixels
+                nav_angle_mean = np.clip(np.mean(Rover.nav_angles * 180/np.pi),-15,15)
+                
+                # Set steering by determinig weighted average of wall contour and navigable pixels means
+                # Include the previous Rover.Steer value in teh average to smooth response.
+                print('Preference for Nav %f' % p_n)
+                print('Wal angle Mean %f' % wal_angle_mean)
+                print('Nav angle Mean %f' % nav_angle_mean)
+                
+                Rover.steer = (         Rover.steer + np.clip(nav_angle_mean * p_n  + (wal_angle_mean) * (1 - p_n),-15,15)        ) / 2
+
+                # If we see any gold nuggets, go into sample mode now!
+                if Rover.tgt_angles.any():
+                    print('-------Decision: Sample-------')
+                    Rover.mode = 'sample'
+                    return Rover
+                
+                # Make final adjustments to steering decision to avoid clear and present obstacles
+                # dreicetly in front of the rover.
+                Rover.steer = collision_adj(Rover.steer, Rover.col_angles)
+                
+            # If there's a lack of navigable terrain pixels then go to 'picke' mode
+            elif len(Rover.nav_angles) < Rover.stop_forward:
+                    # Set mode to "stop" and hit the brakes!
+                    Rover.throttle = 0
+                    # Set brake to stored brake value
+                    Rover.brake = Rover.brake_set
+                    Rover.steer = 0
+                    Rover.mode = 'pickle'
+                    Rover.stopped_time = None
+        print("=========================LEAVING==FORWARD===========================")   
+        return Rover
     
     # There were no nav angles present...go straight into a pickle
     else:
